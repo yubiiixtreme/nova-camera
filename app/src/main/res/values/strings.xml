@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NovaCamera</string>
+    <string name="capture">Capture</string>
+    <string name="record">Record</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="switch_camera">Switch camera</string>
+    <string name="pro_mode">Pro</string>
+    <string name="vault_locked">Vault locked — authenticate to view</string>
+</resources>

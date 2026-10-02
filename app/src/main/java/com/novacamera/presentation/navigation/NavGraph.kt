@@ -1,0 +1,34 @@
+package com.novacamera.presentation.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.novacamera.presentation.camera.CameraScreen
+import com.novacamera.presentation.gallery.GalleryScreen
+import com.novacamera.presentation.settings.SettingsScreen
+import com.novacamera.presentation.vault.VaultScreen
+
+object Routes {
+    const val CAMERA = "camera"
+    const val GALLERY = "gallery"
+    const val SETTINGS = "settings"
+    const val VAULT = "vault"
+}
+
+@Composable
+fun NovaNavGraph() {
+    val nav = rememberNavController()
+    NavHost(navController = nav, startDestination = Routes.CAMERA) {
+        composable(Routes.CAMERA) {
+            CameraScreen(
+                onOpenGallery = { nav.navigate(Routes.GALLERY) },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onOpenVault = { nav.navigate(Routes.VAULT) },
+            )
+        }
+        composable(Routes.GALLERY) { GalleryScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.VAULT) { VaultScreen(onBack = { nav.popBackStack() }) }
+    }
+}
