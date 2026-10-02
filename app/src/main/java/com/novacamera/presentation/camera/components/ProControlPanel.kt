@@ -19,6 +19,19 @@ import com.novacamera.presentation.camera.OverlayKind
  * DSLR-like pro panel: ISO, shutter, WB Kelvin, manual focus, EV + overlays.
  * Sliders snap to sensor bounds supplied by Camera2ProController.
  */
+internal fun formatShutter(sec: Double?): String {
+    if (sec == null) return "AUTO"
+    if (sec <= 0) return "AUTO"
+    if (sec >= 1.0) return "${"%.1f".format(sec)}s"
+    return "1/${(1.0 / sec).toInt()}s"
+}
+
+internal fun shutterToSlider(sec: Double?): Float {
+    if (sec == null) return 0f
+    // Inverse of the linear map above, clamped to the slider range.
+    return (((sec - 1.0 / 8000) / 30.0).toFloat()).coerceIn(0f, 1f)
+}
+
 @Composable
 fun ProControlPanel(
     pro: ProControls,
@@ -33,9 +46,9 @@ fun ProControlPanel(
             onValueChange = { onIntent(CameraIntent.SetIso(it.toInt())) },
             valueRange = isoRange.first.toFloat()..isoRange.last.toFloat(),
         )
-        Text("Shutter  ${pro.shutterSpeedSec?.let { "1/${(1 / it).toInt()}s" } ?: "AUTO"}")
+        Text("Shutter  ${formatShutter(pro.shutterSpeedSec)}")
         Slider(
-            value = pro.shutterSpeedSec?.toFloat() ?: 0f,
+            value = shutterToSlider(pro.shutterSpeedSec),
             onValueChange = {
                 // Map 0..1 → 1/8000..30s log scale (simplified linear here).
                 val sec = if (it <= 0.01f) null else (1.0 / 8000 + it * 30.0)

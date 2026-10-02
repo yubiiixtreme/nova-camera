@@ -20,7 +20,7 @@ class ExifStripper @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     suspend fun strippedCopy(source: Uri): Uri = withContext(Dispatchers.IO) {
-        val tmp = kotlin.io.path.createTempFile("nova_strip", ".jpg").toFile()
+        val tmp = java.io.File(context.cacheDir, "nova_strip_${System.currentTimeMillis()}.jpg")
         context.contentResolver.openInputStream(source)?.use { ins ->
             tmp.outputStream().use { out -> ins.copyTo(out) }
         }
@@ -29,11 +29,16 @@ class ExifStripper @Inject constructor(
             exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE, null)
             exif.setAttribute(ExifInterface.TAG_GPS_LONGITUDE, null)
             exif.setAttribute(ExifInterface.TAG_GPS_ALTITUDE, null)
+            exif.setAttribute(ExifInterface.TAG_GPS_LATITUDE_REF, null)
+            exif.setAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF, null)
             exif.setAttribute(ExifInterface.TAG_MAKE, null)
             exif.setAttribute(ExifInterface.TAG_MODEL, null)
+            exif.setAttribute(ExifInterface.TAG_DEVICE_SERIAL_NUMBER, null)
             exif.saveAttributes()
         }
-        Uri.fromFile(tmp)
+        androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", tmp,
+        )
     }
 
     suspend fun hasLocation(uri: Uri): Boolean = withContext(Dispatchers.IO) {

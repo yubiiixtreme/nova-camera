@@ -35,9 +35,33 @@ class VaultManager @Inject constructor(
         source.inputStream().use { ins ->
             enc.openFileOutput().use { out -> ins.copyTo(out) }
         }
-        // Best-effort secure delete of the plain source.
-        runCatching { source.writeBytes(ByteArray(source.length().toInt())); source.delete() }
+        // Best-effort secure delete of the plain source (streamed 64KB
+        // chunks — the old code allocated source.length() bytes at once,
+        // OOMing on large videos and overflowing past 2GB).
+        runCatching { secureDelete(source) }
         dest
+    }
+
+    private fun secureDelete(file: File) {
+        try {
+            val len = file.length()
+            if (len > 0) {
+                java.io.RandomAccessFile(file, "rw").use { raf ->
+                    val chunk = ByteArray(64 * 1024)
+                    var remaining = len
+                    while (remaining > 0) {
+                        val n = minOf(chunk.size.toLong(), remaining).toInt()
+                        raf.write(chunk, 0, n)
+                        remaining -= n
+                    }
+                    raf.fd.sync()
+                }
+            }
+        } catch (_: Exception) {
+            // Best-effort only.
+        } finally {
+            runCatching { file.delete() }
+        }
     }
 
     suspend fun openDecrypted(name: String): File = withContext(Dispatchers.IO) {

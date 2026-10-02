@@ -10,7 +10,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.opencv.android.OpenCVLoader
 
 /**
  * Document scanner: edge detection → perspective warp → enhance → PDF export.
@@ -31,8 +30,10 @@ class DocumentScanner @Inject constructor(
     }
 
     private fun detectCorners(src: Bitmap): List<PointF>? {
-        if (!runCatching { OpenCVLoader.initDebug() }.getOrDefault(false)) return null
-        // Real impl: Canny → findContours → approxPolyDP(4 pts). Stubbed fallback:
+        // OpenCV is not a declared dependency (see gradle/libs.versions.toml):
+        // referencing org.opencv.android.OpenCVLoader does not compile.
+        // Keep the center-crop fallback until an OpenCV AAR is vendored and
+        // detectCorners is implemented via Canny → findContours → approxPolyDP.
         return null
     }
 
@@ -59,26 +60,38 @@ class DocumentScanner @Inject constructor(
     }
 
     suspend fun exportPdf(pages: List<Bitmap>, name: String): Uri = withContext(Dispatchers.IO) {
+        require(pages.isNotEmpty()) { "No pages to export" }
         // Uses Android PdfDocument (no extra dep) — writes to MediaStore Downloads.
         val doc = android.graphics.pdf.PdfDocument()
-        pages.forEach { bmp ->
-            val info = android.graphics.pdf.PdfDocument.PageInfo.Builder(bmp.width, bmp.height, 1).build()
-            val page = doc.startPage(info)
-            page.canvas.drawBitmap(bmp, 0f, 0f, null)
-            doc.finishPage(page)
-        }
-        val values = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$name.pdf")
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/NovaCamera")
+        try {
+            pages.forEach { bmp ->
+                val info = android.graphics.pdf.PdfDocument.PageInfo.Builder(bmp.width, bmp.height, 1).build()
+                val page = doc.startPage(info)
+                page.canvas.drawBitmap(bmp, 0f, 0f, null)
+                doc.finishPage(page)
             }
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$name.pdf")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/NovaCamera")
+                }
+            }
+            // MediaStore.Downloads requires API 29+; minSdk is 26, so fall
+            // back to Images on API 26-28 instead of crashing with
+            // NoSuchFieldError. Insert may also return null (e.g. no volume).
+            val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            } else {
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
+            val uri = context.contentResolver.insert(collection, values)
+                ?: throw IllegalStateException("MediaStore insert failed — storage unavailable")
+            context.contentResolver.openOutputStream(uri)?.use { doc.writeTo(it) }
+                ?: throw IllegalStateException("Could not open output stream for $uri")
+            uri
+        } finally {
+            doc.close()
         }
-        val uri = context.contentResolver.insert(
-            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values,
-        )!!
-        context.contentResolver.openOutputStream(uri)?.use { doc.writeTo(it) }
-        doc.close()
-        uri
     }
 }

@@ -1,6 +1,8 @@
 package com.novacamera.presentation.camera
 
 import android.view.MotionEvent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Scaffold
@@ -21,6 +24,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +47,7 @@ import com.novacamera.presentation.camera.components.ProControlPanel
 import com.novacamera.presentation.camera.components.QuickToolbar
 import com.novacamera.presentation.camera.components.ShutterButton
 import com.novacamera.presentation.camera.components.ZebraOverlay
+import com.novacamera.util.Permissions
 
 /**
  * Main camera screen: lifecycle-aware PreviewView + gesture zoom/focus,
@@ -62,6 +67,19 @@ fun CameraScreen(
     val lifecycle = LocalLifecycleOwner.current
     val context = LocalContext.current
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var hasCameraPermission by remember { mutableStateOf(Permissions.hasCamera(context)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        hasCameraPermission = grants.values.all { it } || Permissions.hasCamera(context)
+    }
+
+    LaunchedEffect(Unit) {
+        if (!Permissions.hasCamera(context)) {
+            permissionLauncher.launch((Permissions.CAMERA + Permissions.mediaRead()).distinct().toTypedArray())
+        }
+    }
 
     // Bind camera whenever settings that affect the session change.
     DisposableEffect(lifecycle, ui.settings.lensFacing, ui.settings.captureMode) {
@@ -72,6 +90,21 @@ fun CameraScreen(
             // Simplified: binding happens through AndroidView update block below.
         }
         onDispose { }
+    }
+
+    if (!hasCameraPermission) {
+        Scaffold { pad ->
+            Box(Modifier.fillMaxSize().padding(pad), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Camera access is needed for preview and capture.")
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = {
+                        permissionLauncher.launch((Permissions.CAMERA + Permissions.mediaRead()).distinct().toTypedArray())
+                    }) { Text("Grant camera permission") }
+                }
+            }
+        }
+        return
     }
 
     Scaffold { pad ->

@@ -67,10 +67,5 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
-        <service
-            android:name="androidx.camera.video.VideoRecordEventListener"
-            android:foregroundServiceType="camera|microphone"
-            tools:ignore="MissingClass" />
     </application>
 </manifest>
