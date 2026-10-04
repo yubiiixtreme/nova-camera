@@ -23,7 +23,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,7 +37,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.novacamera.core.camera.CameraEngine
 import com.novacamera.domain.model.CaptureMode
 import com.novacamera.domain.model.FlashMode
 import com.novacamera.presentation.camera.components.FocusPeakingOverlay
@@ -61,7 +59,6 @@ fun CameraScreen(
     onOpenSettings: () -> Unit,
     onOpenVault: () -> Unit,
     vm: CameraViewModel = hiltViewModel(),
-    engine: CameraEngine? = null,
 ) {
     val ui by vm.ui.collectAsState()
     val lifecycle = LocalLifecycleOwner.current
@@ -81,15 +78,9 @@ fun CameraScreen(
         }
     }
 
-    // Bind camera whenever settings that affect the session change.
-    DisposableEffect(lifecycle, ui.settings.lensFacing, ui.settings.captureMode) {
-        val pv = previewView
-        var cancelled = false
-        if (pv != null && engine != null) {
-            // Launched from composition: use lifecycle-aware coroutine via viewModel binding helper.
-            // Simplified: binding happens through AndroidView update block below.
-        }
-        onDispose { }
+    // (Re)bind camera whenever the preview surface is ready or session-affecting settings change.
+    LaunchedEffect(previewView, lifecycle, ui.settings.lensFacing, ui.settings.captureMode, ui.settings.videoQuality) {
+        previewView?.let { vm.bindCamera(lifecycle, it) }
     }
 
     if (!hasCameraPermission) {
@@ -134,6 +125,9 @@ fun CameraScreen(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = { vm.onIntent(CameraIntent.SwitchCamera) },
+                            onTap = { offset ->
+                                vm.onTapToFocus(offset.x / size.width, offset.y / size.height)
+                            },
                         )
                     },
             ) {
@@ -144,10 +138,7 @@ fun CameraScreen(
                             previewView = this
                         }
                     },
-                    update = { pv ->
-                        previewView = pv
-                        // Re-bind on settings change (engine injected via EntryPoint in prod).
-                    },
+                    update = { pv -> previewView = pv },
                     modifier = Modifier.fillMaxSize(),
                 )
                 HistogramOverlay(enabled = ui.settings.proControls.histogramEnabled, modifier = Modifier.align(Alignment.TopCenter))

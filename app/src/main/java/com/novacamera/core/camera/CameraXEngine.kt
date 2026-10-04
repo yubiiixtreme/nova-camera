@@ -217,8 +217,8 @@ class CameraXEngine @Inject constructor(
 
     override fun tapToFocus(x: Float, y: Float) {
         val cam = camera ?: return
-        // Coordinates normalized by PreviewView; factory expects surface coords.
-        // Caller passes view-relative px; metering point built lazily here.
+        // x/y are normalized (0..1) coordinates within the preview surface, so
+        // the factory is sized 1x1 to match (do not pass raw view-pixel coords here).
         val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
         val point = factory.createPoint(x, y)
         val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
