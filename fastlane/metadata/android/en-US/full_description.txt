@@ -1,0 +1,9 @@
+NovaCamera is a deliberate smartphone camera for photographers and students.
+
+Shoot with intent: full manual exposure (ISO, 1/8000s–30s shutter, 2000–10000K white balance, EV, manual focus), AF/AE lock, true multi-frame exposure bracketing, burst and timelapse modes, live histogram/zebra/focus telemetry, composition grids, aspect masks, and a gyro horizon level.
+
+Scan and study: photograph handwritten notes, slides, or whiteboards, straighten the page, copy or share the recognized text, and export a PDF — with film-like looks and Adobe .cube import.
+
+Stay private: an encrypted on-device vault with biometric gate, EXIF stripping on export, and location tagging off by default.
+
+Two builds: the standard build uses Google Play Services for on-device ML; the FOSS build excludes all Google libraries (scan warp, vault, and camera are fully working).

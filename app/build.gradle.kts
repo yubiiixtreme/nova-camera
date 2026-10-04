@@ -16,8 +16,8 @@ android {
         // already have pre-Q/O/P/S fallbacks.
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -54,6 +54,15 @@ android {
 
     packaging {
         resources { excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1") }
+    }
+
+    // Two variants: gms (ML Kit thin clients via Play) and foss
+    // (no Google libraries at all — F-Droid eligible). Flavor-specific
+    // code lives in src/gms + src/foss with identical class names.
+    flavorDimensions += "services"
+    productFlavors {
+        create("gms") { dimension = "services" }
+        create("foss") { dimension = "services" }
     }
 
     // Per-ABI APKs: native libs ship 4x (arm64/armv7/x86/x86_64) in a
@@ -96,10 +105,12 @@ dependencies {
     implementation(libs.camerax.video)
     implementation(libs.camerax.view)
 
-    // ML Kit (Play Services thin clients — models download via Play, not bundled)
-    implementation(libs.mlkit.face)
-    implementation(libs.mlkit.barcode)
-    implementation(libs.mlkit.text)
+    // ML Kit Play thin clients — gms flavor only (models via Play, not bundled).
+    // The foss flavor excludes all Google libraries (see src/foss stubs).
+    // NOTE: string form (not gmsImplementation accessor) for script compatibility.
+    add("gmsImplementation", libs.mlkit.face)
+    add("gmsImplementation", libs.mlkit.barcode)
+    add("gmsImplementation", libs.mlkit.text)
 
     // Storage / security / UI
     implementation(libs.exifinterface)

@@ -6,24 +6,19 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.novacamera.ml.DocumentScanner
+import com.novacamera.ml.OcrBridge
 import com.novacamera.processing.CubeLut
 import com.novacamera.processing.applyCubeLut
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 /** Student scan flow: pick a photo of notes/whiteboard -> warp -> OCR -> PDF/share. */
@@ -46,15 +41,13 @@ data class ScanUiState(
 @HiltViewModel
 class ScanViewModel @Inject constructor(
     private val scanner: DocumentScanner,
+    private val ocr: OcrBridge,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(ScanUiState())
     val ui: StateFlow<ScanUiState> = _ui.asStateFlow()
 
-    private val recognizer by lazy {
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    }
     private var customLut: CubeLut? = null
 
     /** Loads the picked image, downsampled so low-RAM devices (Android 7+) stay alive. */
@@ -81,11 +74,13 @@ class ScanViewModel @Inject constructor(
                 return@launch
             }
             _ui.update { it.copy(scannedBase = result.bitmap, scanned = result.bitmap, scanning = false, ocrRunning = true, lutSel = "none") }
-            val text = runCatching { recognize(result.bitmap) }.getOrElse { e ->
+            val text = runCatching { ocr.read(result.bitmap) }.getOrElse { e ->
                 _ui.update {
                     it.copy(
                         ocrRunning = false,
-                        error = if (isMissingPlayServices(e)) {
+                        error = if (e is UnsupportedOperationException) {
+                            "Text recognition needs the standard build — this FOSS build excludes Google ML Kit"
+                        } else if (isMissingPlayServices(e)) {
                             "Text recognition needs Google Play Services — update it and retry"
                         } else {
                             "Text recognition failed: ${e.message}"
@@ -183,13 +178,6 @@ class ScanViewModel @Inject constructor(
         }
     }
 
-    private suspend fun recognize(bmp: Bitmap): String =
-        suspendCancellableCoroutine { cont ->
-            recognizer.process(InputImage.fromBitmap(bmp, 0))
-                .addOnSuccessListener { cont.resume(it.text) }
-                .addOnFailureListener { cont.resumeWithException(it) }
-        }
-
     private fun isMissingPlayServices(e: Throwable): Boolean {
         val msg = (e.message ?: "") + " " + (e.cause?.message ?: "")
         return msg.contains("Play Services", ignoreCase = true) ||
@@ -198,6 +186,6 @@ class ScanViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        runCatching { recognizer.close() }
+        runCatching { ocr.close() }
     }
 }

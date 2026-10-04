@@ -21,11 +21,11 @@ jobs:
         run: |
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
           sdkmanager --licenses <<< "y" > /dev/null || yes | sdkmanager --licenses > /dev/null
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-      - name: Unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+      - name: Build debug APKs (gms + foss)
+        run: ./gradlew :app:assembleGmsDebug :app:assembleFossDebug --stacktrace
+      - name: Unit tests (gms + foss)
+        run: ./gradlew :app:testGmsDebugUnitTest :app:testFossDebugUnitTest --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: nova-camera-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/**/*.apk

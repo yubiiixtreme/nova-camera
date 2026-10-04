@@ -67,10 +67,5 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
-        <!-- ML Kit thin clients: fetch OCR/barcode/face models via Play at install time. -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr,barcode,face" />
     </application>
 </manifest>

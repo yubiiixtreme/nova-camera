@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- GMS flavor only: fetch ML Kit thin-client models via Play at install time.
+         The foss flavor must not reference any Google metadata. -->
+    <application>
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr,barcode,face" />
+    </application>
+</manifest>
