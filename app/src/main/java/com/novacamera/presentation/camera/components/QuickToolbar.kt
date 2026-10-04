@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.GridOff
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
@@ -19,7 +20,9 @@ import androidx.compose.ui.Modifier
 @Composable
 fun QuickToolbar(
     flashOn: Boolean,
+    gridOn: Boolean,
     onToggleFlash: () -> Unit,
+    onToggleGrid: () -> Unit,
     onSwitchCamera: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -35,8 +38,8 @@ fun QuickToolbar(
         IconButton(onClick = onOpenGallery) {
             Icon(Icons.Default.PhotoLibrary, contentDescription = "Open gallery")
         }
-        IconButton(onClick = {}, enabled = false) {
-            Icon(Icons.Default.GridOn, contentDescription = "Grid toggle")
+        IconButton(onClick = onToggleGrid) {
+            Icon(if (gridOn) Icons.Default.GridOn else Icons.Default.GridOff, contentDescription = "Toggle grid overlay")
         }
         IconButton(onClick = onOpenSettings) {
             Icon(Icons.Default.Settings, contentDescription = "Settings")

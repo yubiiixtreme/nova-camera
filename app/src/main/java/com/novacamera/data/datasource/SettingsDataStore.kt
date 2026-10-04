@@ -38,6 +38,7 @@ class SettingsDataStore @Inject constructor(
         val GRID = booleanPreferencesKey("grid")
         val LOC = booleanPreferencesKey("loc")
         val STRIP = booleanPreferencesKey("strip")
+        val AZOOM = booleanPreferencesKey("azoom")
         val SLOW_FPS = intPreferencesKey("slow_fps")
         val TL_MS = longPreferencesKey("tl_ms")
         val LUT = stringPreferencesKey("lut")
@@ -58,6 +59,7 @@ class SettingsDataStore @Inject constructor(
             gridEnabled = p[K.GRID] ?: true,
             locationTagging = p[K.LOC] ?: false,
             stripExifOnExport = p[K.STRIP] ?: true,
+            audioZoomEnabled = p[K.AZOOM] ?: false,
             lutId = p[K.LUT],
         )
     }
@@ -75,6 +77,7 @@ class SettingsDataStore @Inject constructor(
             e[K.GRID] = next.gridEnabled
             e[K.LOC] = next.locationTagging
             e[K.STRIP] = next.stripExifOnExport
+            e[K.AZOOM] = next.audioZoomEnabled
             e[K.SLOW_FPS] = next.slowMotionFps
             e[K.TL_MS] = next.timelapseIntervalMs
             next.lutId?.let { e[K.LUT] = it } ?: e.remove(K.LUT)

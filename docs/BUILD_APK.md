@@ -1,6 +1,7 @@
 # Build & package NovaCamera APK
 
 Prereqs: Java 17, ~1GB free for SDK + Gradle caches.
+Min SDK 24 (Android 7.0) · Target/Compile 34.
 
 ## 1. Install the Android SDK (once per machine)
 
@@ -32,35 +33,53 @@ No `local.properties` needed when `ANDROID_HOME` is set.
 
 Report: `app/build/reports/tests/testDebugUnitTest/index.html`
 
-## 3. Debug APK (installable)
+## 3. APKs (per-ABI splits)
+
+Builds emit one APK per ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`) —
+pick the one matching the device (almost all modern phones: `arm64-v8a`).
 
 ```bash
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug     # debug-signed, installable as-is (~20MB/ABI)
+./gradlew :app:assembleRelease   # minified + shrunk (~3.3MB/ABI, unsigned)
+adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 ```
 
-Output: `app/build/outputs/apk/debug/app-debug.apk` (~195MB, ML Kit models bundled).
+### Why so small? (195MB -> ~3MB)
 
-Install:
+| Build | Size | What changed |
+|---|---|---|
+| v1.0.0 debug (fat) | ~195MB | bundled ML Kit models + 4 ABIs + no shrink |
+| debug per-ABI | ~20MB | ABI splits |
+| release per-ABI | ~3.3MB | + R8 minify/shrink, + Play thin ML Kit clients |
+
+Size wins come from:
+- **ML Kit thin clients** (`play-services-mlkit-*`): OCR/barcode/face models
+  download via Google Play instead of shipping in the APK. Pose detection
+  (biggest native lib, no wired feature) was removed.
+- **ABI splits**: native libs shipped 4x; each APK carries one ABI.
+- **R8 + resource shrinking** on release builds.
+- Devices without Google Play Services lose OCR/barcode/face ML features;
+  camera, vault, and PDF scan-warp keep working.
+
+## 4. Release signing
+
+Release APKs from `assembleRelease` are **unsigned**. For sideload previews,
+signing with the debug key is enough:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android \
+  --key-pass pass:android --out nova-camera.apk app-arm64-v8a-release-unsigned.apk
 ```
 
-## 4. Release AAB/APK
-
-```bash
-./gradlew :app:assembleRelease   # minify + shrink on
-./gradlew :app:bundleRelease     # Play AAB
-```
-
-Signing: create `keystore.properties` (never commit, gitignored) or use Play App Signing.
+For the Play Store: create `keystore.properties` (never commit, gitignored)
+or use Play App Signing, and prefer `./gradlew :app:bundleRelease` (AAB).
 `app/proguard-rules.pro` keeps CameraX / ML Kit / Hilt.
 
-## 5. Download APK from CI
+## 5. Download APK from CI / Releases
 
-Push to `main` or open a PR → GitHub Actions runs `.github/workflows/android.yml`:
-`assembleDebug` + `testDebugUnitTest`, uploads artifact `nova-camera-debug`
-containing `app-debug.apk`. Download it from the Actions run page.
+- Push to `main` or open a PR → GitHub Actions runs `.github/workflows/android.yml`:
+  `assembleDebug` + `testDebugUnitTest`, uploads artifact `nova-camera-debug`.
+- Stable builds live under GitHub **Releases** (e.g. `nova-camera-v1.1.0-arm64-v8a.apk`).
 
 ## Troubleshooting
 
@@ -69,3 +88,4 @@ containing `app-debug.apk`. Download it from the Actions run page.
   `networkTimeout=60000` on slow networks for the 130MB Gradle 8.7 download.
 - `SDK location not found`: set `ANDROID_HOME` (see step 1).
 - `SDK package not found` / license errors: re-run `./scripts/setup-android-sdk.sh`.
+- OCR shows "needs Google Play Services": update Play Services on the device.

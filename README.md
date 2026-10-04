@@ -2,7 +2,8 @@
 
 MVVM + MVI (single `CameraUiState`) with Clean Architecture layers, CameraX primary engine with Camera2 fallback for manual/RAW, Jetpack Compose + Material 3 UI, Coroutines/Flow, Hilt DI, OpenGL ES 3.0 real-time shaders, MediaStore scoped storage, ML Kit, and Keystore-encrypted Private Vault.
 
-- Min SDK 26 · Target/Compile 34 · Kotlin 1.9.24 · AGP 8.5.2 · Java 17
+- Min SDK 24 (Android 7.0) · Target/Compile 34 · Kotlin 1.9.24 · AGP 8.5.2 · Java 17
+- Student scan flow: camera **Scan** button / `Scan notes` screen — pick a photo of notes/slides/whiteboard, straighten, copy/share OCR text, save & share PDF.
 
 ## Project layout
 
@@ -60,12 +61,14 @@ Multi-module split (`:core:camera`, `:feature:capture`, …) is documented in `d
 
 ```bash
 ./scripts/setup-android-sdk.sh  # once per machine: platform-34 + build-tools 34.0.0
-./gradlew :app:assembleDebug      # debug APK -> app/build/outputs/apk/debug/app-debug.apk
-./gradlew :app:assembleRelease    # release AAB/APK (minify + shrink on)
+./gradlew :app:assembleDebug      # debug APKs per ABI -> app/build/outputs/apk/debug/
+./gradlew :app:assembleRelease    # release APKs per ABI, minified (~3MB, unsigned)
+./gradlew :app:bundleRelease      # Play AAB (preferred for store upload)
 ./gradlew :app:testDebugUnitTest  # unit tests
 ```
 
-Full guide (SDK, CI artifact download, signing, troubleshooting): `docs/BUILD_APK.md`.
+Small by design: ML Kit ships as Play thin clients (not bundled), ABI splits,
+R8 + resource shrinking. Full guide (SDK, CI artifact download, signing, troubleshooting): `docs/BUILD_APK.md`.
 
 Release signing: add `keystore.properties` (never commit) or configure Play App Signing; `proguard-rules.pro` keeps CameraX/ML Kit/Hilt.
 

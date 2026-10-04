@@ -58,6 +58,7 @@ fun CameraScreen(
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenVault: () -> Unit,
+    onOpenScan: () -> Unit,
     vm: CameraViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsState()
@@ -102,6 +103,7 @@ fun CameraScreen(
         Column(Modifier.fillMaxSize().padding(pad)) {
             QuickToolbar(
                 flashOn = ui.settings.flashMode != FlashMode.OFF,
+                gridOn = ui.settings.gridEnabled,
                 onToggleFlash = {
                     vm.onIntent(
                         CameraIntent.SetFlash(
@@ -109,6 +111,7 @@ fun CameraScreen(
                         ),
                     )
                 },
+                onToggleGrid = { vm.onIntent(CameraIntent.ToggleGrid) },
                 onSwitchCamera = { vm.onIntent(CameraIntent.SwitchCamera) },
                 onOpenGallery = onOpenGallery,
                 onOpenSettings = onOpenSettings,
@@ -171,6 +174,8 @@ fun CameraScreen(
 
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 AssistChip(onClick = { vm.onIntent(CameraIntent.ToggleProPanel) }, label = { Text("PRO") })
+                Spacer(Modifier.width(12.dp))
+                AssistChip(onClick = onOpenScan, label = { Text("Scan") })
                 Spacer(Modifier.width(12.dp))
                 AssistChip(onClick = onOpenVault, label = { Text("Vault") })
                 Spacer(Modifier.weight(1f))

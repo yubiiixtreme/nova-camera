@@ -33,6 +33,11 @@ sealed interface CameraIntent {
     data class SetWb(val kelvin: Int?) : CameraIntent
     data class SetFocus(val distance: Float?) : CameraIntent
     data class ToggleOverlay(val kind: OverlayKind) : CameraIntent
+    data class SetLocationTagging(val enabled: Boolean) : CameraIntent
+    data class SetStripExif(val enabled: Boolean) : CameraIntent
+    data class SetGrid(val enabled: Boolean) : CameraIntent
+    data class SetAudioZoom(val enabled: Boolean) : CameraIntent
+    data object ToggleGrid : CameraIntent
     data object ClearToast : CameraIntent
 }
 

@@ -81,6 +81,11 @@ class CameraViewModel @Inject constructor(
             is CameraIntent.SetWb -> updateSettings { it.copy(proControls = it.proControls.copy(whiteBalanceKelvin = intent.kelvin)) }
             is CameraIntent.SetFocus -> updateSettings { it.copy(proControls = it.proControls.copy(manualFocusDistance = intent.distance)) }
             is CameraIntent.ToggleOverlay -> toggleOverlay(intent.kind)
+            is CameraIntent.SetLocationTagging -> updateSettings { it.copy(locationTagging = intent.enabled) }
+            is CameraIntent.SetStripExif -> updateSettings { it.copy(stripExifOnExport = intent.enabled) }
+            is CameraIntent.SetGrid -> updateSettings { it.copy(gridEnabled = intent.enabled) }
+            is CameraIntent.SetAudioZoom -> updateSettings { it.copy(audioZoomEnabled = intent.enabled) }
+            CameraIntent.ToggleGrid -> updateSettings { it.copy(gridEnabled = !it.gridEnabled) }
             CameraIntent.ClearToast -> _ui.update { it.copy(toast = null) }
         }
     }

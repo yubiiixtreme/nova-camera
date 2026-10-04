@@ -31,10 +31,14 @@ fun SettingsScreen(onBack: () -> Unit, vm: CameraViewModel = hiltViewModel()) {
         TopAppBar(title = { Text("Settings") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp)) {
-            SettingRow("Location tagging (adds GPS EXIF)", ui.settings.locationTagging, {})
-            SettingRow("Strip EXIF location on export (privacy)", ui.settings.stripExifOnExport, {})
-            SettingRow("Grid overlay", ui.settings.gridEnabled, {})
-            SettingRow("Audio zoom", ui.settings.audioZoomEnabled, {})
+            SettingRow("Location tagging (adds GPS EXIF)", ui.settings.locationTagging,
+                { vm.onIntent(CameraIntent.SetLocationTagging(it)) })
+            SettingRow("Strip EXIF location on export (privacy)", ui.settings.stripExifOnExport,
+                { vm.onIntent(CameraIntent.SetStripExif(it)) })
+            SettingRow("Grid overlay", ui.settings.gridEnabled,
+                { vm.onIntent(CameraIntent.SetGrid(it)) })
+            SettingRow("Audio zoom", ui.settings.audioZoomEnabled,
+                { vm.onIntent(CameraIntent.SetAudioZoom(it)) })
             Text("Volume-key shutter, high-contrast UI, and TalkBack labels are always on.", modifier = Modifier.padding(top = 16.dp))
         }
     }

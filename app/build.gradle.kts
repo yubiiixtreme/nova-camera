@@ -11,10 +11,13 @@ android {
 
     defaultConfig {
         applicationId = "com.novacamera"
-        minSdk = 26
+        // Android 7.0 (API 24) through current: all version-gated APIs
+        // (MediaStore Q/O branches, dynamic color S, concurrent camera P)
+        // already have pre-Q/O/P/S fallbacks.
+        minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -52,6 +55,18 @@ android {
     packaging {
         resources { excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1") }
     }
+
+    // Per-ABI APKs: native libs ship 4x (arm64/armv7/x86/x86_64) in a
+    // universal APK. Splits cut each APK to ~1/4 of the fat size.
+    // For Play uploads prefer bundleRelease (AAB); splits are for sideload.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
+    }
 }
 
 dependencies {
@@ -80,13 +95,11 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.video)
     implementation(libs.camerax.view)
-    implementation(libs.camerax.mlkit.analyzer)
 
-    // ML Kit
+    // ML Kit (Play Services thin clients — models download via Play, not bundled)
     implementation(libs.mlkit.face)
     implementation(libs.mlkit.barcode)
     implementation(libs.mlkit.text)
-    implementation(libs.mlkit.pose)
 
     // Storage / security / UI
     implementation(libs.exifinterface)
