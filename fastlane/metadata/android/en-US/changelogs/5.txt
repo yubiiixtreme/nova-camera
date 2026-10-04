@@ -1,0 +1,1 @@
+Camera actually works now: fixed the blank preview, rebuilt UI, live looks, self-timer, real HDR/Night merge, video to gallery, in-app viewer, persistent pro controls, Android 7-9 crash fix.

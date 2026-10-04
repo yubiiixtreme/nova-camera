@@ -60,4 +60,15 @@ class ProMathTest {
         assertEquals((200f - h) / 2f, r.top, 0.01f)
         assertEquals((200f + h) / 2f, r.bottom, 0.01f)
     }
+
+    @Test fun shutterSliderRespectsDeviceRange() {
+        // Real sensors cap manual exposure far below 30s; the slider must span the device range.
+        val min = 1.0 / 4000
+        val max = 1.0
+        assertEquals(max, sliderToShutter(1f, min, max)!!, 1e-6)
+        assertEquals(1f, shutterToSlider(max, min, max), 1e-6f)
+        val mid = sliderToShutter(0.5f, min, max)!!
+        assertEquals(0.5f, shutterToSlider(mid, min, max), 1e-4f)
+        assertTrue(mid > min && mid < max)
+    }
 }

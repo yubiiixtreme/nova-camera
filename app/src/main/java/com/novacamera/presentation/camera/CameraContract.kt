@@ -1,5 +1,7 @@
 package com.novacamera.presentation.camera
 
+import com.novacamera.core.camera.CameraCaps
+import com.novacamera.core.camera.RecordingState
 import com.novacamera.domain.model.CameraSettings
 import com.novacamera.domain.model.CameraState
 import com.novacamera.domain.model.CaptureMode
@@ -7,11 +9,22 @@ import com.novacamera.domain.model.FlashMode
 import com.novacamera.domain.model.GridStyle
 import com.novacamera.domain.model.AspectMask
 import com.novacamera.domain.model.LensFacing
+import com.novacamera.domain.model.LiveFilter
+import com.novacamera.domain.model.VideoQuality
 
 /** MVI contract: single Intent → ViewModel → single StateFlow<CameraUiState>. */
 data class CameraUiState(
     val settings: CameraSettings = CameraSettings(),
     val camera: CameraState = CameraState(),
+    val caps: CameraCaps = CameraCaps(),
+    val recording: RecordingState = RecordingState(),
+    /** Self-timer seconds remaining, null when no countdown is running. */
+    val countdown: Int? = null,
+    /** "Processing…" style label while a multi-frame capture is merging. */
+    val busyLabel: String? = null,
+    /** Newest saved media, for the gallery thumbnail on the shutter row. */
+    val thumbnail: android.net.Uri? = null,
+    val showFilters: Boolean = false,
     val showProPanel: Boolean = false,
     val showSettings: Boolean = false,
     val presets: List<com.novacamera.data.datasource.Preset> = emptyList(),
@@ -49,6 +62,11 @@ sealed interface CameraIntent {
     data class SetGridStyle(val style: GridStyle) : CameraIntent
     data class SetAspectMask(val mask: AspectMask) : CameraIntent
     data class SetLevel(val enabled: Boolean) : CameraIntent
+    data class SetFilter(val filter: LiveFilter) : CameraIntent
+    data class SetVideoQuality(val quality: VideoQuality) : CameraIntent
+    data class SetShutterSound(val enabled: Boolean) : CameraIntent
+    data object CycleTimer : CameraIntent
+    data object ToggleFilters : CameraIntent
     data object ClearToast : CameraIntent
 }
 

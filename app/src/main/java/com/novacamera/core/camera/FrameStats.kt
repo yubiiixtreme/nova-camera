@@ -53,6 +53,7 @@ class FrameStatsAnalyzer(
         }
     }
 
+    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     private fun sample(proxy: ImageProxy): FrameStats? {
         val img = proxy.image ?: return null
         val y = img.planes[0]

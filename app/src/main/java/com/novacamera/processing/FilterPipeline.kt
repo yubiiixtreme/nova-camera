@@ -99,22 +99,19 @@ class RealtimeFilterRenderer @Inject constructor(
     }
 }
 
-/** CPU-side still-image mergers (HDR / Night / Astro). GPU versions reuse LUT pipeline. */
+/** CPU-side still-image mergers (HDR / Night). Real alignment + fusion lives in [FrameFusion]. */
 @Singleton
 class HdrMerger @Inject constructor(@ApplicationContext private val context: Context) {
-    suspend fun merge(frames: List<Uri>): Uri? = withContext(Dispatchers.Default) {
-        // Production: Debevec/Mertens fusion on YUV buffers. Here we keep the
-        // best-exposed middle frame as the merged result to stay dependency-free.
-        frames.getOrNull(1) ?: frames.firstOrNull()
-    }
+    /** Exposure-fuses the bracket into [out]; false if the frames could not be merged. */
+    suspend fun merge(frames: List<java.io.File>, out: java.io.File): Boolean =
+        withContext(Dispatchers.Default) { FrameFusion.fuse(frames, FrameFusion.Mode.HDR, out) }
 }
 
 @Singleton
 class NightStacker @Inject constructor(@ApplicationContext private val context: Context) {
-    suspend fun stack(frames: List<Uri>): Uri? = withContext(Dispatchers.Default) {
-        // Production: align (ECC) + temporal median + hot-pixel removal.
-        frames.firstOrNull()
-    }
+    /** Aligned mean-stack of the frames into [out]; false if the frames could not be merged. */
+    suspend fun stack(frames: List<java.io.File>, out: java.io.File): Boolean =
+        withContext(Dispatchers.Default) { FrameFusion.fuse(frames, FrameFusion.Mode.NIGHT, out) }
 }
 
 @Singleton

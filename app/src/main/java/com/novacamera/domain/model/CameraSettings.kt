@@ -59,6 +59,18 @@ enum class AspectMask(val ratio: Float) {
     R239(2.39f),
 }
 
+/** Live colour looks. Previewed on the viewfinder and baked into saved photos. */
+enum class LiveFilter(val label: String) {
+    NONE("Original"),
+    VIVID("Vivid"),
+    WARM("Warm"),
+    COOL("Cool"),
+    FADE("Fade"),
+    SEPIA("Sepia"),
+    MONO("Mono"),
+    NOIR("Noir"),
+}
+
 /** Aggregate camera settings persisted via DataStore. */
 data class CameraSettings(
     val captureMode: CaptureMode = CaptureMode.PHOTO,
@@ -66,7 +78,7 @@ data class CameraSettings(
     val flashMode: FlashMode = FlashMode.OFF,
     val stabilization: StabilizationMode = StabilizationMode.OIS_PLUS_EIS,
     val photoFormat: PhotoFormat = PhotoFormat.JPEG,
-    val videoQuality: VideoQuality = VideoQuality.UHD_4K_30,
+    val videoQuality: VideoQuality = VideoQuality.FHD_30,
     val slowMotionFps: Int = 240,
     val timelapseIntervalMs: Long = 2_000L,
     val timelapseShots: Int = 12,
@@ -83,6 +95,9 @@ data class CameraSettings(
     val stripExifOnExport: Boolean = true,
     val audioZoomEnabled: Boolean = false,
     val lutId: String? = null,
+    val filter: LiveFilter = LiveFilter.NONE,
+    val timerSeconds: Int = 0, // self-timer: 0 / 3 / 10
+    val shutterSound: Boolean = true,
     val proControls: ProControls = ProControls(),
 )
 

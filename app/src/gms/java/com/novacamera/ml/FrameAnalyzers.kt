@@ -40,6 +40,7 @@ class FrameAnalyzers @Inject constructor() {
         }
     }
 
+    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     private inline fun process(proxy: ImageProxy, block: (InputImage) -> Unit) {
         val media = proxy.image ?: run { proxy.close(); return }
         runCatching {

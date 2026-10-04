@@ -38,6 +38,7 @@ class SceneRecognizer @Inject constructor(
 
     fun analyzerEnabledProvider(): () -> Boolean = { true }
 
+    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     fun asAnalyzer(onScene: (SceneType) -> Unit): ImageAnalysis.Analyzer {
         val exec = Executors.newSingleThreadExecutor()
         return ImageAnalysis.Analyzer { proxy: ImageProxy ->

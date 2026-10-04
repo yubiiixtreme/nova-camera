@@ -10,7 +10,11 @@ object ShutterEvents {
     private val _presses = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val presses: SharedFlow<Unit> = _presses.asSharedFlow()
 
-    fun press() {
-        _presses.tryEmit(Unit)
+    val isListening: Boolean get() = _presses.subscriptionCount.value > 0
+
+    /** Returns true only if a camera screen is listening, so the key keeps its volume role elsewhere. */
+    fun press(): Boolean {
+        if (_presses.subscriptionCount.value == 0) return false
+        return _presses.tryEmit(Unit)
     }
 }

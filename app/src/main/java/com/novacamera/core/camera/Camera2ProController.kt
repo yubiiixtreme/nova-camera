@@ -2,101 +2,101 @@ package com.novacamera.core.camera
 
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
-import androidx.camera.camera2.interop.Camera2Interop
-import androidx.camera.core.ImageCapture
+import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import com.novacamera.domain.model.ProControls
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 /**
- * Camera2 fallback / pro-control bridge.
- * Applies DSLR-like manual settings through Camera2Interop without
- * abandoning the CameraX lifecycle (preview stays bound).
- * RAW (DNG) path uses a dedicated Camera2 session — see [captureRawDng].
+ * Manual sensor controls on top of the live CameraX session.
+ *
+ * Options are pushed through [Camera2CameraControl], so they take effect on
+ * the running preview AND every capture (the old approach baked them into the
+ * ImageCapture builder once, so sliders never changed anything live). All
+ * capabilities are read from the camera that is actually bound, never from
+ * "the first camera id", and unsupported controls are reported via [CameraCaps].
  */
+@OptIn(ExperimentalCamera2Interop::class)
 @Singleton
 class Camera2ProController @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @Suppress("unused") @ApplicationContext private val context: Context,
 ) {
-    private val cameraManager: CameraManager? =
-        context.getSystemService(CameraManager::class.java)
+    /** Fills the manual-control fields of [base] from the bound camera's characteristics. */
+    fun readCaps(camera: Camera, base: CameraCaps): CameraCaps {
+        val info = runCatching { Camera2CameraInfo.from(camera.cameraInfo) }.getOrNull() ?: return base
+        fun <T> ch(key: CameraCharacteristics.Key<T>): T? = runCatching { info.getCameraCharacteristic(key) }.getOrNull()
 
-    fun isFullManualSupported(): Boolean {
-        val ids = runCatching { cameraManager?.cameraIdList }.getOrNull() ?: return false
-        return ids.any { id ->
-            val caps = cameraManager?.getCameraCharacteristics(id)
-            val level = caps?.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
-            level == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL ||
-                level == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
-        }
+        val caps = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+        val manualSensor = caps?.contains(CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
+        val iso = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+        val exp = ch(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        val minFocus = ch(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+        val awb = ch(CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
+
+        return base.copy(
+            manualSensor = manualSensor && iso != null && exp != null,
+            isoMin = iso?.lower ?: base.isoMin,
+            isoMax = iso?.upper ?: base.isoMax,
+            shutterMinSec = exp?.let { (it.lower / 1e9).coerceAtLeast(1.0 / 8000) } ?: base.shutterMinSec,
+            // Preview freezes on very long exposures; cap the manual range at 1s.
+            shutterMaxSec = exp?.let { (it.upper / 1e9).coerceAtMost(1.0) } ?: base.shutterMaxSec,
+            manualFocus = minFocus > 0f,
+            minFocusDiopters = minFocus,
+            manualWhiteBalance = awb?.any { it in WB_PRESETS.map { p -> p.second } } == true,
+        )
     }
 
-    fun isoRange(): IntRange {
-        val id = cameraManager?.cameraIdList?.firstOrNull() ?: return 100..3200
-        val chars = cameraManager?.getCameraCharacteristics(id) ?: return 100..3200
-        val range = chars.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
-        return if (range != null) range.lower..range.upper else 100..3200
+    /** Pushes the full manual option set. Passing all-auto clears every override. */
+    fun apply(camera: Camera, pro: ProControls, caps: CameraCaps) {
+        val control = runCatching { Camera2CameraControl.from(camera.cameraControl) }.getOrNull() ?: return
+        val b = CaptureRequestOptions.Builder()
+
+        if (caps.manualSensor && (pro.iso != null || pro.shutterSpeedSec != null)) {
+            b.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF)
+            b.setCaptureRequestOption(
+                CaptureRequest.SENSOR_SENSITIVITY,
+                (pro.iso ?: 400).coerceIn(caps.isoMin, caps.isoMax),
+            )
+            val sec = (pro.shutterSpeedSec ?: (1.0 / 60)).coerceIn(caps.shutterMinSec, caps.shutterMaxSec)
+            b.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, (sec * 1e9).toLong())
+        }
+
+        val focus = pro.manualFocusDistance
+        if (caps.manualFocus && focus != null) {
+            // 0 = infinity, 1 = closest focus; Camera2 wants diopters.
+            b.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF)
+            b.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, focus.coerceIn(0f, 1f) * caps.minFocusDiopters)
+        }
+
+        val kelvin = pro.whiteBalanceKelvin
+        if (caps.manualWhiteBalance && kelvin != null) {
+            b.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, nearestWbPreset(kelvin))
+        }
+
+        control.setCaptureRequestOptions(b.build())
     }
 
-    fun shutterRangeSec(): ClosedRange<Double> {
-        val id = cameraManager?.cameraIdList?.firstOrNull() ?: return (1.0 / 8000)..30.0
-        val chars = cameraManager?.getCameraCharacteristics(id) ?: return (1.0 / 8000)..30.0
-        val ns = chars.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
-        return if (ns != null) (ns.lower / 1e9)..(ns.upper / 1e9.coerceAtMost(30e9)) else (1.0 / 8000)..30.0
-    }
+    private fun nearestWbPreset(kelvin: Int): Int =
+        WB_PRESETS.minBy { abs(it.first - kelvin) }.second
 
-    /** Applies manual CaptureRequest options to the builder BEFORE build(). */
-    fun applyManualSettings(builder: ImageCapture.Builder, pro: ProControls) {
-        // Camera2Interop.Extender operates on the use-case Builder at bind
-        // time, so the CameraX session keeps its lifecycle (preview stays bound).
-        val extender = Camera2Interop.Extender(builder)
-
-        // Manual focus distance (0 = infinity … 1 = macro → diopters mapping
-        // is lens-specific; 0f focus distance = infinity in Camera2).
-        pro.manualFocusDistance?.let {
-            extender.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF,
-            )
-            extender.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, it * 10f)
-        }
-
-        pro.iso?.let { iso ->
-            extender.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF,
-            )
-            extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
-        }
-
-        pro.shutterSpeedSec?.let { sec ->
-            extender.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF,
-            )
-            extender.setCaptureRequestOption(
-                CaptureRequest.SENSOR_EXPOSURE_TIME, (sec * 1e9).toLong(),
-            )
-        }
-
-        pro.whiteBalanceKelvin?.let {
-            extender.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AWB_MODE, CameraMetadata.CONTROL_AWB_MODE_OFF,
-            )
-            // Rough Kelvin → RGGB gains (approx; calibrated per-device via
-            // Custom WB routine in ProControlPanel).
-            val (r, b) = kelvinToGains(it)
-            val gains = android.hardware.camera2.params.RggbChannelVector(r, 1f, 1f, b)
-            extender.setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_MODE, CameraMetadata.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)
-            extender.setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, gains)
-        }
-    }
-
-    private fun kelvinToGains(k: Int): Pair<Float, Float> {
-        val t = (k / 100f)
-        val r = if (t <= 66) 255f else (329.698727446f * Math.pow((t - 60).toDouble(), -0.1332047592)).toFloat()
-        val b = if (t >= 66) 255f else (138.5177312231f * Math.log(t.toDouble() - 10) - 305.0447927307f).toFloat()
-        return (r / 255f * 2f).coerceIn(1f, 4f) to (b / 255f * 2f).coerceIn(1f, 4f)
+    private companion object {
+        /** Approximate colour temperature of Camera2's AWB presets (widely supported, unlike raw gains). */
+        val WB_PRESETS = listOf(
+            2700 to CameraMetadata.CONTROL_AWB_MODE_INCANDESCENT,
+            3300 to CameraMetadata.CONTROL_AWB_MODE_WARM_FLUORESCENT,
+            4200 to CameraMetadata.CONTROL_AWB_MODE_FLUORESCENT,
+            5200 to CameraMetadata.CONTROL_AWB_MODE_DAYLIGHT,
+            6500 to CameraMetadata.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT,
+            7500 to CameraMetadata.CONTROL_AWB_MODE_SHADE,
+        )
     }
 }

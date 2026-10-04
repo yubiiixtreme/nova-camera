@@ -21,9 +21,9 @@
 
 | 📷 Shoot deliberately | 🎓 Scan & study | 🔒 Private by default |
 |---|---|---|
-| ISO / 1/8000s–30s shutter / 2000–10000K WB / EV / manual focus, AF/AE lock, true 3–7 frame AEB, burst, timelapse | Pick a photo of notes → straighten → copy/share OCR text → save & share PDF, with Mono/Warm/Cool looks + `.cube` import | Keystore-encrypted vault with biometric gate, EXIF stripping on export, location tagging OFF by default |
+| ISO / shutter / WB / EV / manual focus (live, within what your camera supports), AF/AE lock, true 3–7 frame AEB, burst, timelapse | Pick a photo of notes → straighten → copy/share OCR text → save & share PDF, with Mono/Warm/Cool looks + `.cube` import | Keystore-encrypted vault with biometric gate, EXIF stripping on export, location tagging OFF by default |
 
-Plus: live histogram / zebra / focus meter from real frame data, thirds + golden-ratio + center grids, aspect masks, gyro level, volume-key shutter, clean-viewfinder mode, named presets — in a **~3MB** install. Details: [`docs/PRO_CONTROLS.md`](docs/PRO_CONTROLS.md).
+Plus: live colour looks (Vivid, Warm, Noir…) on the viewfinder and baked into photos, self-timer, real HDR bracket merge and aligned night stacking, 1080p/4K video with pause, pinch + tap-to-focus with drag-to-adjust exposure, an in-app gallery with swipe/zoom/share/delete, live histogram / zebra / focus meter from real frame data, thirds + golden-ratio + center grids, aspect masks, gyro level, volume-key shutter, named presets — in a **~3MB** install. Details: [`docs/PRO_CONTROLS.md`](docs/PRO_CONTROLS.md).
 
 ## Get it
 

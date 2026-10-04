@@ -20,6 +20,16 @@ object Permissions {
         arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
+    /** Pre-Android-10 devices need explicit storage permission to save into Pictures/Movies. */
+    fun legacyStorage(): Array<String> = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE)
+    } else {
+        emptyArray()
+    }
+
+    fun hasMic(ctx: Context) =
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
     fun hasCamera(ctx: Context) =
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 }

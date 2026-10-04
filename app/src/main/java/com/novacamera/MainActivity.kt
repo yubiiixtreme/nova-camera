@@ -3,6 +3,7 @@ package com.novacamera
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -17,10 +18,13 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             NovaCameraTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Black) {
                     NovaNavGraph()
                 }
             }
@@ -29,8 +33,8 @@ class MainActivity : FragmentActivity() {
 
     /** Volume-down acts as the shutter release (volume-up keeps system behavior). */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            ShutterEvents.press()
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN && ShutterEvents.isListening) {
+            if (event?.repeatCount == 0) ShutterEvents.press() // ignore key auto-repeat
             return true
         }
         return super.onKeyDown(keyCode, event)
