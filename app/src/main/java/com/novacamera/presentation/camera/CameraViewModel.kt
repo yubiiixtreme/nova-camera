@@ -1,5 +1,7 @@
 package com.novacamera.presentation.camera
 
+import androidx.camera.view.PreviewView
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novacamera.core.camera.CameraEngine
@@ -128,6 +130,22 @@ class CameraViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** Binds Preview+Capture to the given lifecycle. Safe to call again on settings change. */
+    fun bindCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+        viewModelScope.launch {
+            engine.bind(lifecycleOwner, previewView, _ui.value.settings)
+                .onSuccess { _ui.update { it.copy(camera = it.camera.copy(isBound = true, error = null)) } }
+                .onFailure { e ->
+                    _ui.update { it.copy(camera = it.camera.copy(isBound = false, error = e.message), toast = e.message) }
+                }
+        }
+    }
+
+    /** [xNorm]/[yNorm] are normalized (0..1) coordinates within the preview surface. */
+    fun onTapToFocus(xNorm: Float, yNorm: Float) {
+        engine.tapToFocus(xNorm.coerceIn(0f, 1f), yNorm.coerceIn(0f, 1f))
     }
 
     fun consumeLastCapture(): android.net.Uri? {
