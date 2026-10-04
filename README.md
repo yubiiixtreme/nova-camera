@@ -2,7 +2,7 @@
   <img src="docs/artwork/launcher-icon.jpg" width="220" alt="NovaCamera icon" />
 </p>
 
-<h1 align="center">NovaCamera</h1>
+<h1 align="center">NovaCamera(ON HOLD)</h1>
 
 <p align="center">
   <b>A deliberate Android camera: full manual control, student scan flow, private vault.</b><br />
