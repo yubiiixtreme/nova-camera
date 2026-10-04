@@ -36,7 +36,7 @@ class ExifStripper @Inject constructor(
         ExifInterface.TAG_MAKE,
         ExifInterface.TAG_MODEL,
         ExifInterface.TAG_SOFTWARE,
-        ExifInterface.TAG_DEVICE_SERIAL_NUMBER,
+        ExifInterface.TAG_IMAGE_UNIQUE_ID,
         ExifInterface.TAG_BODY_SERIAL_NUMBER,
         ExifInterface.TAG_LENS_MAKE,
         ExifInterface.TAG_LENS_MODEL,
