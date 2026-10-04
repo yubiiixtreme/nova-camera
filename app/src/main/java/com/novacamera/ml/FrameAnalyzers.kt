@@ -26,7 +26,7 @@ class FrameAnalyzers @Inject constructor() {
     val poseLikelihood: StateFlow<Float> = _poseLikelihood.asStateFlow()
 
     private val barcodeScanner = BarcodeScanning.getClient()
-    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT)
+    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val poseDetector = PoseDetection.getClient(
         PoseDetectorOptions.Builder().setDetectorMode(PoseDetectorOptions.STREAM_MODE).build(),
     )
@@ -34,7 +34,7 @@ class FrameAnalyzers @Inject constructor() {
     fun barcodeAnalyzer(): ImageAnalysis.Analyzer = ImageAnalysis.Analyzer { proxy ->
         process(proxy) { img ->
             barcodeScanner.process(img)
-                .addOnSuccess { codes -> _barcode.value = codes.firstOrNull()?.rawValue }
+                .addOnSuccessListener { codes -> _barcode.value = codes.firstOrNull()?.rawValue }
                 .addOnCompleteListener { proxy.close() }
         }
     }
@@ -42,7 +42,7 @@ class FrameAnalyzers @Inject constructor() {
     fun ocrAnalyzer(): ImageAnalysis.Analyzer = ImageAnalysis.Analyzer { proxy ->
         process(proxy) { img ->
             textRecognizer.process(img)
-                .addOnSuccess { result -> _ocrText.value = result.text }
+                .addOnSuccessListener { result -> _ocrText.value = result.text }
                 .addOnCompleteListener { proxy.close() }
         }
     }
@@ -50,7 +50,7 @@ class FrameAnalyzers @Inject constructor() {
     fun poseAnalyzer(): ImageAnalysis.Analyzer = ImageAnalysis.Analyzer { proxy ->
         process(proxy) { img ->
             poseDetector.process(img)
-                .addOnSuccess { pose -> _poseLikelihood.value = pose.allPoseLandmarks.size / 33f }
+                .addOnSuccessListener { pose -> _poseLikelihood.value = pose.allPoseLandmarks.size / 33f }
                 .addOnCompleteListener { proxy.close() }
         }
     }

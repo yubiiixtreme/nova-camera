@@ -2,7 +2,6 @@ package com.novacamera.core.common
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import javax.inject.Inject
 
 /** Injectable dispatchers for testability. */
 data class DispatcherProvider(
@@ -12,6 +11,6 @@ data class DispatcherProvider(
     val unconfined: CoroutineDispatcher = Dispatchers.Unconfined,
 ) {
     companion object {
-        @Inject fun create() = DispatcherProvider()
+        fun create() = DispatcherProvider()
     }
 }

@@ -59,10 +59,13 @@ Multi-module split (`:core:camera`, `:feature:capture`, …) is documented in `d
 ## Build & package
 
 ```bash
-./gradlew :app:assembleDebug      # debug APK
+./scripts/setup-android-sdk.sh  # once per machine: platform-34 + build-tools 34.0.0
+./gradlew :app:assembleDebug      # debug APK -> app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:assembleRelease    # release AAB/APK (minify + shrink on)
 ./gradlew :app:testDebugUnitTest  # unit tests
 ```
+
+Full guide (SDK, CI artifact download, signing, troubleshooting): `docs/BUILD_APK.md`.
 
 Release signing: add `keystore.properties` (never commit) or configure Play App Signing; `proguard-rules.pro` keeps CameraX/ML Kit/Hilt.
 

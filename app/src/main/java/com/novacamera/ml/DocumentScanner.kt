@@ -65,7 +65,7 @@ class DocumentScanner @Inject constructor(
         val doc = android.graphics.pdf.PdfDocument()
         try {
             pages.forEach { bmp ->
-                val info = android.graphics.pdf.PdfDocument.PageInfo.Builder(bmp.width, bmp.height, 1).build()
+                val info = android.graphics.pdf.PdfDocument.PageInfo.Builder(bmp.width, bmp.height, 1).create()
                 val page = doc.startPage(info)
                 page.canvas.drawBitmap(bmp, 0f, 0f, null)
                 doc.finishPage(page)
