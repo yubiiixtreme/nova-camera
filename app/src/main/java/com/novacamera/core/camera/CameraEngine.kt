@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 interface CameraEngine {
     val zoomState: StateFlow<Float>
     val torchState: StateFlow<Boolean>
+    /** Live frame telemetry (null until the first analyzed frame). */
+    val frameStats: StateFlow<FrameStats?>
 
     /** Bind Preview + ImageCapture + VideoCapture + Analysis. Safe to re-call on settings change. */
     suspend fun bind(

@@ -11,6 +11,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.novacamera.domain.model.CameraSettings
 import com.novacamera.domain.model.CaptureMode
 import com.novacamera.domain.model.FlashMode
+import com.novacamera.domain.model.GridStyle
+import com.novacamera.domain.model.AspectMask
 import com.novacamera.domain.model.LensFacing
 import com.novacamera.domain.model.PhotoFormat
 import com.novacamera.domain.model.StabilizationMode
@@ -41,6 +43,13 @@ class SettingsDataStore @Inject constructor(
         val AZOOM = booleanPreferencesKey("azoom")
         val SLOW_FPS = intPreferencesKey("slow_fps")
         val TL_MS = longPreferencesKey("tl_ms")
+        val TL_SHOTS = intPreferencesKey("tl_shots")
+        val BURSTS = intPreferencesKey("bursts")
+        val HDRF = intPreferencesKey("hdrf")
+        val HDRSTEP = intPreferencesKey("hdrstep")
+        val GRIDSTYLE = stringPreferencesKey("gridstyle")
+        val ASPECT = stringPreferencesKey("aspect")
+        val LEVEL = booleanPreferencesKey("level")
         val LUT = stringPreferencesKey("lut")
     }
 
@@ -54,9 +63,16 @@ class SettingsDataStore @Inject constructor(
             videoQuality = runCatching { VideoQuality.valueOf(p[K.QUALITY] ?: "UHD_4K_30") }.getOrDefault(VideoQuality.UHD_4K_30),
             slowMotionFps = p[K.SLOW_FPS] ?: 240,
             timelapseIntervalMs = p[K.TL_MS] ?: 2000L,
+            timelapseShots = (p[K.TL_SHOTS] ?: 12).coerceIn(2, 300),
+            burstShots = (p[K.BURSTS] ?: 10).coerceIn(2, 50),
+            hdrFrames = (p[K.HDRF] ?: 3).coerceIn(3, 7),
+            hdrStepEv = (p[K.HDRSTEP] ?: 1).coerceIn(1, 3),
             zoomRatio = p[K.ZOOM] ?: 1f,
             bokehStrength = p[K.BOKEH] ?: 0.5f,
             gridEnabled = p[K.GRID] ?: true,
+            gridStyle = runCatching { GridStyle.valueOf(p[K.GRIDSTYLE] ?: "THIRDS") }.getOrDefault(GridStyle.THIRDS),
+            aspectMask = runCatching { AspectMask.valueOf(p[K.ASPECT] ?: "FULL") }.getOrDefault(AspectMask.FULL),
+            levelEnabled = p[K.LEVEL] ?: true,
             locationTagging = p[K.LOC] ?: false,
             stripExifOnExport = p[K.STRIP] ?: true,
             audioZoomEnabled = p[K.AZOOM] ?: false,
@@ -80,6 +96,13 @@ class SettingsDataStore @Inject constructor(
             e[K.AZOOM] = next.audioZoomEnabled
             e[K.SLOW_FPS] = next.slowMotionFps
             e[K.TL_MS] = next.timelapseIntervalMs
+            e[K.TL_SHOTS] = next.timelapseShots
+            e[K.BURSTS] = next.burstShots
+            e[K.HDRF] = next.hdrFrames
+            e[K.HDRSTEP] = next.hdrStepEv
+            e[K.GRIDSTYLE] = next.gridStyle.name
+            e[K.ASPECT] = next.aspectMask.name
+            e[K.LEVEL] = next.levelEnabled
             next.lutId?.let { e[K.LUT] = it } ?: e.remove(K.LUT)
         }
     }

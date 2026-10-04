@@ -63,6 +63,8 @@ class CameraXEngine @Inject constructor(
     override val zoomState: StateFlow<Float> = _zoomState.asStateFlow()
     private val _torchState = MutableStateFlow(false)
     override val torchState: StateFlow<Boolean> = _torchState.asStateFlow()
+    private val _frameStats = MutableStateFlow<FrameStats?>(null)
+    override val frameStats: StateFlow<FrameStats?> = _frameStats.asStateFlow()
 
     override suspend fun bind(
         lifecycleOwner: LifecycleOwner,
@@ -120,6 +122,8 @@ class CameraXEngine @Inject constructor(
         val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
+        // Live exposure/focus telemetry for histogram/zebra/peaking overlays.
+        analysis.setAnalyzer(ContextCompat.getMainExecutor(context), FrameStatsAnalyzer({ _frameStats.value = it }))
 
         // HDR/Night need extended exposure: switch to MAXIMIZE_QUALITY lazily
         // at capture time inside captureHandler (keeps preview at 60fps).
@@ -149,9 +153,18 @@ class CameraXEngine @Inject constructor(
         val capture = imageCapture ?: return Result.failure(IllegalStateException("Camera not bound"))
         return when (settings.captureMode) {
             CaptureMode.HDR, CaptureMode.NIGHT, CaptureMode.PORTRAIT ->
-                captureHandler.captureBracketed(capture, settings)
+                captureHandler.captureBracketed(capture, settings, setExposure = { shiftEv(it) })
             else -> captureSingle(capture, settings)
         }
+    }
+
+    /** Shifts capture EV for bracketing, clamped to the device range. Settles before return. */
+    private suspend fun shiftEv(ev: Int) {
+        val cam = camera
+        val range = cam?.cameraInfo?.exposureState?.exposureCompensationRange
+        val clamped = ev.coerceIn(range?.lower ?: ev, range?.upper ?: ev)
+        runCatching { cam?.cameraControl?.setExposureCompensationIndex(clamped) }
+        kotlinx.coroutines.delay(150)
     }
 
     private suspend fun captureSingle(
@@ -196,7 +209,7 @@ class CameraXEngine @Inject constructor(
 
     override suspend fun takeBurst(settings: CameraSettings, count: Int): Result<List<Uri>> {
         val capture = imageCapture ?: return Result.failure(IllegalStateException("Camera not bound"))
-        return captureHandler.captureBurst(capture) { singleCapture(settings) }
+        return captureHandler.captureBurst(capture, count) { singleCapture(settings) }
     }
 
     private suspend fun singleCapture(settings: CameraSettings): Result<Uri> =
@@ -210,9 +223,19 @@ class CameraXEngine @Inject constructor(
     }
 
     override fun lockAfAe(lock: Boolean) {
-        // AF/AE lock via disabled auto-focus metering; exposure locked by
-        // fixing compensation at current index (Camera2Interop in pro ctrl).
-        camera?.cameraControl?.cancelFocusAndMetering()
+        val cam = camera ?: return
+        if (lock) {
+            // AF + AE together at frame center, metering held until unlocked.
+            val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+            val point = factory.createPoint(0.5f, 0.5f)
+            val action = FocusMeteringAction.Builder(
+                point,
+                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB,
+            ).disableAutoCancel().build()
+            cam.cameraControl.startFocusAndMetering(action)
+        } else {
+            cam.cameraControl.cancelFocusAndMetering()
+        }
     }
 
     override fun tapToFocus(x: Float, y: Float) {
@@ -221,7 +244,10 @@ class CameraXEngine @Inject constructor(
         // the factory is sized 1x1 to match (do not pass raw view-pixel coords here).
         val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
         val point = factory.createPoint(x, y)
-        val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+        val action = FocusMeteringAction.Builder(
+            point,
+            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB,
+        ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
         cam.cameraControl.startFocusAndMetering(action)
     }
 

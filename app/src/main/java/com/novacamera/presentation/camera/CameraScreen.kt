@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,14 +16,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,18 +41,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.novacamera.core.common.LevelMonitor
 import com.novacamera.domain.model.CaptureMode
 import com.novacamera.domain.model.FlashMode
+import com.novacamera.presentation.camera.components.AspectMaskOverlay
 import com.novacamera.presentation.camera.components.FocusPeakingOverlay
+import com.novacamera.presentation.camera.components.GridOverlay
 import com.novacamera.presentation.camera.components.HistogramOverlay
+import com.novacamera.presentation.camera.components.LevelOverlay
 import com.novacamera.presentation.camera.components.ProControlPanel
 import com.novacamera.presentation.camera.components.QuickToolbar
 import com.novacamera.presentation.camera.components.ShutterButton
 import com.novacamera.presentation.camera.components.ZebraOverlay
 import com.novacamera.util.Permissions
+import com.novacamera.util.ShutterEvents
+import com.novacamera.util.tick
 
 /**
  * Main camera screen: lifecycle-aware PreviewView + gesture zoom/focus,
@@ -62,10 +76,28 @@ fun CameraScreen(
     vm: CameraViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsState()
+    val stats by vm.frameStats.collectAsState()
     val lifecycle = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val view = LocalView.current
     var previewView by remember { mutableStateOf<PreviewView?>(null) }
     var hasCameraPermission by remember { mutableStateOf(Permissions.hasCamera(context)) }
+    var chromeVisible by remember { mutableStateOf(true) }
+    val level = remember { LevelMonitor() }
+    val tilt by level.tilt.collectAsState()
+
+    DisposableEffect(context) {
+        level.start(context)
+        onDispose { level.stop() }
+    }
+
+    // Volume-key shutter: only the visible camera screen fires.
+    LaunchedEffect(Unit) {
+        ShutterEvents.presses.collect {
+            view.tick()
+            vm.onIntent(CameraIntent.Shutter)
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -101,8 +133,9 @@ fun CameraScreen(
 
     Scaffold { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
-            QuickToolbar(
-                flashOn = ui.settings.flashMode != FlashMode.OFF,
+            if (chromeVisible) {
+                QuickToolbar(
+                    flashOn = ui.settings.flashMode != FlashMode.OFF,
                 gridOn = ui.settings.gridEnabled,
                 onToggleFlash = {
                     vm.onIntent(
@@ -115,7 +148,9 @@ fun CameraScreen(
                 onSwitchCamera = { vm.onIntent(CameraIntent.SwitchCamera) },
                 onOpenGallery = onOpenGallery,
                 onOpenSettings = onOpenSettings,
+                onToggleChrome = { chromeVisible = false },
             )
+            }
 
             Box(
                 Modifier.weight(1f).fillMaxWidth()
@@ -128,6 +163,7 @@ fun CameraScreen(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = { vm.onIntent(CameraIntent.SwitchCamera) },
+                            onLongPress = { vm.onIntent(CameraIntent.ToggleAfAeLock) },
                             onTap = { offset ->
                                 vm.onTapToFocus(offset.x / size.width, offset.y / size.height)
                             },
@@ -144,17 +180,34 @@ fun CameraScreen(
                     update = { pv -> previewView = pv },
                     modifier = Modifier.fillMaxSize(),
                 )
-                HistogramOverlay(enabled = ui.settings.proControls.histogramEnabled, modifier = Modifier.align(Alignment.TopCenter))
-                ZebraOverlay(enabled = ui.settings.proControls.zebraEnabled, overexposed = ui.camera.exposureIndex > 8, modifier = Modifier.fillMaxSize())
-                FocusPeakingOverlay(enabled = ui.settings.proControls.focusPeakingEnabled, inFocus = !ui.camera.afLocked, modifier = Modifier.fillMaxSize())
+                GridOverlay(enabled = ui.settings.gridEnabled, style = ui.settings.gridStyle, modifier = Modifier.fillMaxSize())
+                AspectMaskOverlay(mask = ui.settings.aspectMask, modifier = Modifier.fillMaxSize())
+                LevelOverlay(enabled = ui.settings.levelEnabled, tilt = tilt, modifier = Modifier.fillMaxSize())
+                HistogramOverlay(enabled = ui.settings.proControls.histogramEnabled, hist = stats?.lumaHist, modifier = Modifier.align(Alignment.TopCenter))
+                ZebraOverlay(enabled = ui.settings.proControls.zebraEnabled, clippedFraction = stats?.clippedFraction ?: 0f, modifier = Modifier.fillMaxSize())
+                FocusPeakingOverlay(
+                    enabled = ui.settings.proControls.focusPeakingEnabled,
+                    manualFocus = ui.settings.proControls.manualFocusDistance != null,
+                    sharpness = stats?.sharpness ?: 0f,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (ui.camera.afLocked) {
+                    AssistChip(onClick = { vm.onIntent(CameraIntent.ToggleAfAeLock) }, label = { Text("AF/AE locked") }, modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+                }
                 if (ui.camera.thermalThrottled) {
                     AssistChip(onClick = {}, label = { Text("Thermal saver: effects reduced") }, modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp))
                 }
+                if (!chromeVisible) {
+                    IconButton(onClick = { chromeVisible = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                        Icon(Icons.Default.Visibility, contentDescription = "Show interface")
+                    }
+                }
             }
 
+            if (chromeVisible) {
             // Mode rail
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                listOf(CaptureMode.PHOTO, CaptureMode.VIDEO, CaptureMode.PORTRAIT, CaptureMode.NIGHT, CaptureMode.HDR, CaptureMode.DOCUMENT).forEach { m ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).horizontalScroll(rememberScrollState())) {
+                listOf(CaptureMode.PHOTO, CaptureMode.VIDEO, CaptureMode.BURST, CaptureMode.TIMELAPSE, CaptureMode.PORTRAIT, CaptureMode.NIGHT, CaptureMode.HDR, CaptureMode.DOCUMENT).forEach { m ->
                     FilterChip(
                         selected = ui.settings.captureMode == m,
                         onClick = { vm.onIntent(CameraIntent.SetMode(m)) },
@@ -182,16 +235,22 @@ fun CameraScreen(
                 ShutterButton(
                     isCapturing = ui.camera.isCapturing,
                     isVideo = ui.settings.captureMode == CaptureMode.VIDEO,
-                    onClick = { vm.onIntent(CameraIntent.Shutter) },
+                    onClick = { view.tick(); vm.onIntent(CameraIntent.Shutter) },
                 )
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.width(96.dp))
             }
 
             if (ui.showProPanel) {
-                ProControlPanel(pro = ui.settings.proControls, onIntent = vm::onIntent)
+                ProControlPanel(
+                    pro = ui.settings,
+                    settings = ui.settings,
+                    afLocked = ui.camera.afLocked || ui.camera.aeLocked,
+                    onIntent = vm::onIntent,
+                )
             } else {
                 Spacer(Modifier.height(4.dp))
+            }
             }
         }
     }

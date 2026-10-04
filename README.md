@@ -52,8 +52,7 @@ Multi-module split (`:core:camera`, `:feature:capture`, …) is documented in `d
 |---|---|
 | Single-shot ZSL, Burst stack, Portrait bokeh slider, Night stacking, HDR fusion, Document scan + PDF | `CameraXEngine`, `LowLatencyCaptureHandler`, `HdrMerger`/`NightStacker`, `DocumentScanner` |
 | 4K60/8K30 video, OIS+EIS, slow-mo 120/240, timelapse intervalometer, audio zoom + BT/USB mic, pause/resume single-file | `VideoRecorderController`, `AudioController` |
-| Pro: focus peaking, ISO, shutter 1/8000–30s, WB 2000–10000K, EV ±3, RAW+DNG flag, histogram/zebra | `Camera2ProController`, `ProControlPanel`, `Overlays` |
-| Dual-cam concurrent, AI scene tuning, astrophoto stacking, subject tracking, LUT filters, EXIF strip + encrypted vault | `ConcurrentCameraManager`, `SceneRecognizer`, `AstrophotoStacker`, `SubjectTracker`, `LutManager`, `ExifStripper`, `VaultManager` |
+| Pro: focus peaking, ISO, shutter 1/8000–30s, WB 2000–10000K, EV ±3, RAW+DNG flag, histogram/zebra | `Camera2ProController`, `ProControlPanel`, `Overlays` (real-vs-roadmap: `docs/PRO_CONTROLS.md`) || Dual-cam concurrent, AI scene tuning, astrophoto stacking, subject tracking, LUT filters, EXIF strip + encrypted vault | `ConcurrentCameraManager`, `SceneRecognizer`, `AstrophotoStacker`, `SubjectTracker`, `LutManager`, `ExifStripper`, `VaultManager` |
 | Pinch zoom, double-tap switch, tap-to-focus, AF/AE lock, rotation-safe, haptics, floating shutter, TalkBack, volume-key shutter hook | `CameraScreen`, `Permissions`, `util/Extensions` |
 | Lifecycle-aware bind/unbind, aspect-safe `PreviewView`, foldable reflow, thermal shed-load, async writes | `CameraXEngine`, `ThermalMonitor`, `MediaStoreDataSource` |
 

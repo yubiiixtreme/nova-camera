@@ -62,6 +62,9 @@ fun ScanScreen(onBack: () -> Unit, vm: ScanViewModel = hiltViewModel()) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) vm.setSource(uri)
     }
+    val cubePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) vm.importLut(uri)
+    }
 
     LaunchedEffect(ui.error) {
         ui.error?.let { snack.showSnackbar(it); vm.clearError() }
@@ -103,10 +106,34 @@ fun ScanScreen(onBack: () -> Unit, vm: ScanViewModel = hiltViewModel()) {
                 }
             }
 
-            if (ui.scanning || ui.ocrRunning) {
+            if (ui.scanning || ui.ocrRunning || ui.applyingLut) {
                 Spacer(Modifier.height(12.dp))
                 CircularProgressIndicator()
-                Text(if (ui.scanning) "Straightening page…" else "Reading text…")
+                Text(if (ui.scanning) "Straightening page…" else if (ui.ocrRunning) "Reading text…" else "Applying look…")
+            }
+
+            if (ui.scannedBase != null) {
+                Spacer(Modifier.height(8.dp))
+                Text("Look")
+                Row {
+                    lookChip("None", "none", ui.lutSel) { vm.selectLut("none") }
+                    Spacer(Modifier.width(8.dp))
+                    lookChip("Mono", "mono", ui.lutSel) { vm.selectLut("mono") }
+                    Spacer(Modifier.width(8.dp))
+                    lookChip("Warm", "warm", ui.lutSel) { vm.selectLut("warm") }
+                    Spacer(Modifier.width(8.dp))
+                    lookChip("Cool", "cool", ui.lutSel) { vm.selectLut("cool") }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    OutlinedButton(onClick = { cubePicker.launch("*/*") }) {
+                        Text(ui.customLutName?.let { "Custom: $it" } ?: "Import .cube")
+                    }
+                    if (ui.customLutName != null) {
+                        Spacer(Modifier.width(8.dp))
+                        lookChip("Custom", "custom", ui.lutSel) { vm.selectLut("custom") }
+                    }
+                }
             }
 
             if (ui.scanned != null && ui.ocrText.isNotEmpty()) {
@@ -144,6 +171,15 @@ fun ScanScreen(onBack: () -> Unit, vm: ScanViewModel = hiltViewModel()) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun lookChip(label: String, id: String, selected: String, onClick: () -> Unit) {
+    if (selected == id) {
+        Button(onClick = onClick) { Text(label) }
+    } else {
+        OutlinedButton(onClick = onClick) { Text(label) }
     }
 }
 

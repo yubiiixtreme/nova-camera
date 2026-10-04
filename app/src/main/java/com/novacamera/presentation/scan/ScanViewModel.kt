@@ -10,26 +10,34 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.novacamera.ml.DocumentScanner
+import com.novacamera.processing.CubeLut
+import com.novacamera.processing.applyCubeLut
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 /** Student scan flow: pick a photo of notes/whiteboard -> warp -> OCR -> PDF/share. */
 data class ScanUiState(
     val sourceUri: Uri? = null,
     val preview: Bitmap? = null,
-    val scanned: Bitmap? = null,
+    val scannedBase: Bitmap? = null, // ungraded warp (OCR source)
+    val scanned: Bitmap? = null, // displayed (LUT applied)
     val ocrText: String = "",
     val scanning: Boolean = false,
     val ocrRunning: Boolean = false,
+    val applyingLut: Boolean = false,
+    val lutSel: String = "none",
+    val customLutName: String? = null,
     val pdfUri: Uri? = null,
     val pdfName: String = "",
     val error: String? = null,
@@ -47,11 +55,12 @@ class ScanViewModel @Inject constructor(
     private val recognizer by lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
+    private var customLut: CubeLut? = null
 
     /** Loads the picked image, downsampled so low-RAM devices (Android 7+) stay alive. */
     fun setSource(uri: Uri) {
         viewModelScope.launch {
-            _ui.update { it.copy(error = null, pdfUri = null, scanned = null, ocrText = "") }
+            _ui.update { it.copy(error = null, pdfUri = null, scanned = null, scannedBase = null, ocrText = "", lutSel = "none") }
             val bmp = runCatching { decodeDownsampled(uri, maxDim = 2048) }.getOrNull()
             if (bmp == null) {
                 _ui.update { it.copy(error = "Could not open that image") }
@@ -71,7 +80,7 @@ class ScanViewModel @Inject constructor(
                 _ui.update { it.copy(scanning = false, error = "Scan failed — try a clearer photo") }
                 return@launch
             }
-            _ui.update { it.copy(scanned = result.bitmap, scanning = false, ocrRunning = true) }
+            _ui.update { it.copy(scannedBase = result.bitmap, scanned = result.bitmap, scanning = false, ocrRunning = true, lutSel = "none") }
             val text = runCatching { recognize(result.bitmap) }.getOrElse { e ->
                 _ui.update {
                     it.copy(
@@ -104,9 +113,59 @@ class ScanViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 
+    /** Applies a look to the displayed scan (OCR always runs on the ungraded base). */
+    fun selectLut(id: String) {
+        val base = _ui.value.scannedBase ?: run {
+            _ui.update { it.copy(lutSel = id) }
+            return
+        }
+        if (id == "none") {
+            _ui.value.scanned?.takeIf { it != base }?.recycle()
+            _ui.update { it.copy(scanned = base, lutSel = id) }
+            return
+        }
+        val lut = if (id == "custom") customLut else CubeLut.builtIn(id)
+        if (lut == null) {
+            _ui.update { it.copy(error = "No custom LUT imported yet", lutSel = _ui.value.lutSel) }
+            return
+        }
+        _ui.update { it.copy(applyingLut = true, lutSel = id) }
+        viewModelScope.launch {
+            val graded = runCatching { withContext(Dispatchers.Default) { applyCubeLut(base, lut) } }.getOrNull()
+            _ui.value.scanned?.takeIf { it != base }?.recycle()
+            if (graded == null) {
+                _ui.update { it.copy(applyingLut = false, scanned = base, error = "Could not apply LUT") }
+            } else {
+                _ui.update { it.copy(applyingLut = false, scanned = graded) }
+            }
+        }
+    }
+
+    /** Imports an Adobe .cube file picked by the user. */
+    fun importLut(uri: Uri) {
+        viewModelScope.launch {
+            val text = runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { ins ->
+                        ins.bufferedReader().readText().take(300_000)
+                    }
+                }
+            }.getOrNull()
+            val lut = text?.let { CubeLut.parse(it) }
+            if (lut == null) {
+                _ui.update { it.copy(error = "Not a supported .cube file (need LUT_3D_SIZE + 0..1 data)") }
+            } else {
+                customLut = lut
+                _ui.update { it.copy(customLutName = lut.title) }
+                selectLut("custom")
+            }
+        }
+    }
+
     fun reset() {
         _ui.value.preview?.recycle()
-        _ui.value.scanned?.takeIf { it != _ui.value.preview }?.recycle()
+        _ui.value.scanned?.takeIf { it != _ui.value.preview && it != _ui.value.scannedBase }?.recycle()
+        _ui.value.scannedBase?.takeIf { it != _ui.value.preview }?.recycle()
         _ui.value = ScanUiState()
     }
 

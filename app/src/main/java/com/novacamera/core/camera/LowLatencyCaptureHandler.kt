@@ -9,6 +9,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.core.content.ContextCompat
 import com.novacamera.domain.model.CameraSettings
+import com.novacamera.domain.model.CaptureMode
 import com.novacamera.processing.HdrMerger
 import com.novacamera.processing.NightStacker
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,29 +39,40 @@ class LowLatencyCaptureHandler @Inject constructor(
     suspend fun captureBracketed(
         capture: ImageCapture,
         settings: CameraSettings,
+        setExposure: suspend (Int) -> Unit,
     ): Result<Uri> = withContext(Dispatchers.IO) {
-        // Capture 3 frames quickly for fusion. Exposure bracketing is driven
-        // by CameraControl.setExposureCompensationIndex in CameraXEngine;
-        // the handler keeps frames latency-free and delegates fusion to GPU.
+        // HDR sweeps EV around 0 (real bracketing via exposure compensation);
+        // Night/Portrait stack identical frames for temporal merging.
+        val evs = if (settings.captureMode == CaptureMode.HDR) {
+            bracketEvs(settings.hdrFrames, settings.hdrStepEv)
+        } else {
+            List(settings.hdrFrames.coerceIn(2, 7)) { 0 }
+        }
         val frames = mutableListOf<Uri>()
-        repeat(3) {
+        for (ev in evs) {
+            setExposure(ev)
             when (val r = saveFrame(capture)) {
                 is Ok -> frames += r.uri
-                is Err -> return@withContext Result.failure(r.e)
+                is Err -> {
+                    runCatching { setExposure(0) }
+                    return@withContext Result.failure(r.e)
+                }
             }
         }
+        runCatching { setExposure(0) }
         // Merge on GPU; for brevity the merger composites the saved frames.
         val merged = if (settings.captureMode.name == "HDR") hdrMerger.merge(frames)
         else nightStacker.stack(frames)
-        Result.success(merged ?: frames.getOrElse(1) { frames.first() })
+        Result.success(merged ?: frames.getOrElse(evs.size / 2) { frames.first() })
     }
 
     suspend fun captureBurst(
         capture: ImageCapture,
+        count: Int,
         save: suspend () -> Result<Uri>,
     ): Result<List<Uri>> = withContext(Dispatchers.IO) {
         val out = mutableListOf<Uri>()
-        repeat(BurstManager.DEFAULT_BURST_COUNT) {
+        repeat(count.coerceIn(2, 50)) {
             val r = save()
             if (r.isSuccess) out += r.getOrThrow()
             else if (out.isEmpty()) {
@@ -108,4 +120,14 @@ class LowLatencyCaptureHandler @Inject constructor(
     private sealed interface SaveResult
     private data class Ok(val uri: Uri) : SaveResult
     private data class Err(val e: Exception) : SaveResult
+
+    companion object {
+        /** Symmetric EV sweep around 0, e.g. (3,1)->[-1,0,1], (5,2)->[-4..4 step 2]. */
+        fun bracketEvs(frames: Int, stepEv: Int): List<Int> {
+            val f = (if (frames % 2 == 0) frames + 1 else frames).coerceIn(3, 7)
+            val step = stepEv.coerceIn(1, 3)
+            val half = f / 2
+            return (-half..half).map { it * step }
+        }
+    }
 }
