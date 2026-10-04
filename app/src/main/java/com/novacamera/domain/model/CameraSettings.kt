@@ -47,6 +47,18 @@ data class ProControls(
     val rawEnabled: Boolean = false,
 )
 
+/** Viewfinder composition grid style. */
+enum class GridStyle { THIRDS, GOLDEN, CENTER }
+
+/** Aspect-ratio framing mask drawn over the preview (capture stays full-frame). */
+enum class AspectMask(val ratio: Float) {
+    FULL(0f),
+    R11(1f),
+    R45(4f / 5f),
+    R169(16f / 9f),
+    R239(2.39f),
+}
+
 /** Aggregate camera settings persisted via DataStore. */
 data class CameraSettings(
     val captureMode: CaptureMode = CaptureMode.PHOTO,
@@ -57,9 +69,16 @@ data class CameraSettings(
     val videoQuality: VideoQuality = VideoQuality.UHD_4K_30,
     val slowMotionFps: Int = 240,
     val timelapseIntervalMs: Long = 2_000L,
+    val timelapseShots: Int = 12,
+    val burstShots: Int = 10,
+    val hdrFrames: Int = 3,
+    val hdrStepEv: Int = 1,
     val zoomRatio: Float = 1f,
     val bokehStrength: Float = 0.5f, // portrait blur 0..1
     val gridEnabled: Boolean = true,
+    val gridStyle: GridStyle = GridStyle.THIRDS,
+    val aspectMask: AspectMask = AspectMask.FULL,
+    val levelEnabled: Boolean = true,
     val locationTagging: Boolean = false, // privacy default OFF
     val stripExifOnExport: Boolean = true,
     val audioZoomEnabled: Boolean = false,

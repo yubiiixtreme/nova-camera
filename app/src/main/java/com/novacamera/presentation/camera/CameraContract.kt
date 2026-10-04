@@ -4,6 +4,8 @@ import com.novacamera.domain.model.CameraSettings
 import com.novacamera.domain.model.CameraState
 import com.novacamera.domain.model.CaptureMode
 import com.novacamera.domain.model.FlashMode
+import com.novacamera.domain.model.GridStyle
+import com.novacamera.domain.model.AspectMask
 import com.novacamera.domain.model.LensFacing
 
 /** MVI contract: single Intent → ViewModel → single StateFlow<CameraUiState>. */
@@ -12,6 +14,7 @@ data class CameraUiState(
     val camera: CameraState = CameraState(),
     val showProPanel: Boolean = false,
     val showSettings: Boolean = false,
+    val presets: List<com.novacamera.data.datasource.Preset> = emptyList(),
     val toast: String? = null,
 )
 
@@ -38,6 +41,14 @@ sealed interface CameraIntent {
     data class SetGrid(val enabled: Boolean) : CameraIntent
     data class SetAudioZoom(val enabled: Boolean) : CameraIntent
     data object ToggleGrid : CameraIntent
+    data object ToggleAfAeLock : CameraIntent
+    data class SetBurstShots(val count: Int) : CameraIntent
+    data class SetHdrFrames(val frames: Int) : CameraIntent
+    data class SetHdrStep(val stepEv: Int) : CameraIntent
+    data class SetTimelapseShots(val shots: Int) : CameraIntent
+    data class SetGridStyle(val style: GridStyle) : CameraIntent
+    data class SetAspectMask(val mask: AspectMask) : CameraIntent
+    data class SetLevel(val enabled: Boolean) : CameraIntent
     data object ClearToast : CameraIntent
 }
 

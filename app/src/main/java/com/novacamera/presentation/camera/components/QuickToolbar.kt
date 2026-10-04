@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.GridOff
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ fun QuickToolbar(
     onSwitchCamera: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
+    onToggleChrome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -43,6 +45,9 @@ fun QuickToolbar(
         }
         IconButton(onClick = onOpenSettings) {
             Icon(Icons.Default.Settings, contentDescription = "Settings")
+        }
+        IconButton(onClick = onToggleChrome) {
+            Icon(Icons.Default.VisibilityOff, contentDescription = "Hide interface for a clean viewfinder")
         }
     }
 }

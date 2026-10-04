@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.novacamera.core.camera.CameraEngine
 import com.novacamera.core.common.ThermalMonitor
+import com.novacamera.data.datasource.PresetStore
 import com.novacamera.data.datasource.SettingsDataStore
 import com.novacamera.data.repository.MediaRepository
 import com.novacamera.domain.model.CaptureMode
@@ -30,6 +31,7 @@ class CameraViewModel @Inject constructor(
     private val engine: CameraEngine,
     private val media: MediaRepository,
     private val prefs: SettingsDataStore,
+    private val presetStore: PresetStore,
     private val thermal: ThermalMonitor,
     val video: VideoRecorderController,
 ) : ViewModel() {
@@ -42,6 +44,9 @@ class CameraViewModel @Inject constructor(
         thermal.start()
         viewModelScope.launch {
             prefs.settings.collect { s -> _ui.update { it.copy(settings = s) } }
+        }
+        viewModelScope.launch {
+            presetStore.presets.collect { p -> _ui.update { it.copy(presets = p) } }
         }
         viewModelScope.launch {
             thermal.status.collect { t ->
@@ -86,6 +91,14 @@ class CameraViewModel @Inject constructor(
             is CameraIntent.SetGrid -> updateSettings { it.copy(gridEnabled = intent.enabled) }
             is CameraIntent.SetAudioZoom -> updateSettings { it.copy(audioZoomEnabled = intent.enabled) }
             CameraIntent.ToggleGrid -> updateSettings { it.copy(gridEnabled = !it.gridEnabled) }
+            CameraIntent.ToggleAfAeLock -> toggleAfAeLock()
+            is CameraIntent.SetBurstShots -> updateSettings { it.copy(burstShots = intent.count.coerceIn(2, 50)) }
+            is CameraIntent.SetHdrFrames -> updateSettings { it.copy(hdrFrames = intent.frames.coerceIn(3, 7)) }
+            is CameraIntent.SetHdrStep -> updateSettings { it.copy(hdrStepEv = intent.stepEv.coerceIn(1, 3)) }
+            is CameraIntent.SetTimelapseShots -> updateSettings { it.copy(timelapseShots = intent.shots.coerceIn(2, 300)) }
+            is CameraIntent.SetGridStyle -> updateSettings { it.copy(gridStyle = intent.style) }
+            is CameraIntent.SetAspectMask -> updateSettings { it.copy(aspectMask = intent.mask) }
+            is CameraIntent.SetLevel -> updateSettings { it.copy(levelEnabled = intent.enabled) }
             CameraIntent.ClearToast -> _ui.update { it.copy(toast = null) }
         }
     }
@@ -113,9 +126,12 @@ class CameraViewModel @Inject constructor(
             val uri: android.net.Uri?
             val error: Throwable?
             if (s.captureMode == CaptureMode.BURST) {
-                val r = engine.takeBurst(s, 10)
+                val r = engine.takeBurst(s, s.burstShots)
                 uri = r.getOrNull()?.firstOrNull()
                 error = r.exceptionOrNull()
+            } else if (s.captureMode == CaptureMode.TIMELAPSE) {
+                uri = runTimelapse(s)
+                error = if (uri != null) null else IllegalStateException("Timelapse produced no frames")
             } else {
                 val r = engine.takePhoto(s)
                 uri = r.getOrNull()
@@ -137,6 +153,41 @@ class CameraViewModel @Inject constructor(
         }
     }
 
+    /** Intervalometer: N stills spaced by the configured interval. Last frame is kept. */
+    private suspend fun runTimelapse(s: com.novacamera.domain.model.CameraSettings): android.net.Uri? {
+        var last: android.net.Uri? = null
+        val total = s.timelapseShots.coerceIn(2, 300)
+        repeat(total) { i ->
+            val r = engine.takePhoto(s)
+            r.getOrNull()?.let {
+                last = it
+                media.notifyNewMedia(it, false)
+            }
+            _ui.update {
+                it.copy(
+                    camera = it.camera.copy(burstCount = i + 1),
+                    toast = "Timelapse ${i + 1}/$total",
+                )
+            }
+            if (i < total - 1) kotlinx.coroutines.delay(s.timelapseIntervalMs.coerceIn(500L, 60_000L))
+        }
+        return last
+    }
+
+    private fun toggleAfAeLock() {
+        val locked = !(_ui.value.camera.afLocked || _ui.value.camera.aeLocked)
+        engine.lockAfAe(locked)
+        _ui.update {
+            it.copy(
+                camera = it.camera.copy(afLocked = locked, aeLocked = locked),
+                toast = if (locked) "AF/AE locked" else "AF/AE unlocked",
+            )
+        }
+    }
+
+    /** Live frame telemetry for histogram/zebra/peaking overlays. */
+    val frameStats: kotlinx.coroutines.flow.StateFlow<com.novacamera.core.camera.FrameStats?> = engine.frameStats
+
     /** Binds Preview+Capture to the given lifecycle. Safe to call again on settings change. */
     fun bindCamera(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
         viewModelScope.launch {
@@ -157,6 +208,24 @@ class CameraViewModel @Inject constructor(
         val u = _ui.value.camera.lastCaptureUri
         _ui.update { it.copy(camera = it.camera.copy(lastCaptureUri = null)) }
         return u
+    }
+
+    /** Presets: save current setup, recall, or delete by name. */
+    fun savePreset(name: String) {
+        viewModelScope.launch {
+            presetStore.save(name, _ui.value.settings)
+            _ui.update { it.copy(toast = "Preset saved") }
+        }
+    }
+
+    fun applyPreset(name: String) {
+        val p = _ui.value.presets.firstOrNull { it.name == name } ?: return
+        updateSettings { p.settings }
+        _ui.update { it.copy(toast = "Preset \"$name\"") }
+    }
+
+    fun deletePreset(name: String) {
+        viewModelScope.launch { presetStore.delete(name) }
     }
 
     override fun onCleared() {
