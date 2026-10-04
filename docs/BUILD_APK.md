@@ -28,20 +28,21 @@ No `local.properties` needed when `ANDROID_HOME` is set.
 ## 2. Tests
 
 ```bash
-./gradlew :app:testDebugUnitTest
+./gradlew :app:testGmsDebugUnitTest :app:testFossDebugUnitTest
 ```
 
-Report: `app/build/reports/tests/testDebugUnitTest/index.html`
+Report: `app/build/reports/tests/testGmsDebugUnitTest/index.html`
 
-## 3. APKs (per-ABI splits)
+## 3. APKs (per-ABI splits, per flavor)
 
 Builds emit one APK per ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`) —
 pick the one matching the device (almost all modern phones: `arm64-v8a`).
+Two flavors: `gms` (ML via Play Services) and `foss` (no Google libs).
 
 ```bash
-./gradlew :app:assembleDebug     # debug-signed, installable as-is (~20MB/ABI)
-./gradlew :app:assembleRelease   # minified + shrunk (~3.3MB/ABI, unsigned)
-adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+./gradlew :app:assembleGmsDebug :app:assembleFossDebug     # installable (~20MB/ABI gms)
+./gradlew :app:assembleGmsRelease :app:assembleFossRelease # minified (~3MB/ABI, unsigned)
+adb install -r app/build/outputs/apk/gmsDebug/app-gms-arm64-v8a-debug.apk
 ```
 
 ### Why so small? (195MB -> ~3MB)
@@ -63,7 +64,7 @@ Size wins come from:
 
 ## 4. Release signing
 
-Release APKs from `assembleRelease` are **unsigned**. For sideload previews,
+Release APKs from `assemble*Release` are **unsigned**. For sideload previews,
 signing with the debug key is enough:
 
 ```bash
@@ -72,13 +73,13 @@ apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android \
 ```
 
 For the Play Store: create `keystore.properties` (never commit, gitignored)
-or use Play App Signing, and prefer `./gradlew :app:bundleRelease` (AAB).
+or use Play App Signing, and prefer `./gradlew :app:bundleGmsRelease` (AAB).
 `app/proguard-rules.pro` keeps CameraX / ML Kit / Hilt.
 
 ## 5. Download APK from CI / Releases
 
 - Push to `main` or open a PR → GitHub Actions runs `.github/workflows/android.yml`:
-  `assembleDebug` + `testDebugUnitTest`, uploads artifact `nova-camera-debug`.
+  `assembleGmsDebug`/`assembleFossDebug` + unit tests, uploads artifact `nova-camera-debug`.
 - Stable builds live under GitHub **Releases** (e.g. `nova-camera-v1.1.0-arm64-v8a.apk`).
 
 ## Troubleshooting

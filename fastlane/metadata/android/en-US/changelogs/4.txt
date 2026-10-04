@@ -1,0 +1,1 @@
+Manual controls pack: AF/AE lock, true AEB, timelapse, live telemetry overlays, presets, Scan looks. FOSS flavor, new icon.
